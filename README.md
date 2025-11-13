@@ -1,4 +1,4 @@
-# Integration Connector Agent
+# ConnectCare
 
 The Integration Connector Agent is a powerful data synchronization tool that connects external sources with multiple sinks,
 enabling real-time data flow and transformation between different systems. It's designed to simplify data integration
