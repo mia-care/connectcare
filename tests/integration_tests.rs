@@ -1,4 +1,4 @@
-use integration_connector_agent::{
+use connectcare::{
     config::{AppConfig, ServerConfig, Integration, SourceConfig},
     sources::jira::{JiraSourceConfig, config::{JiraAuthentication}},
     config::secret::SecretSource,

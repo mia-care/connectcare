@@ -1,4 +1,4 @@
-use integration_connector_agent::{
+use connectcare::{
     config::AppConfig,
     pipeline::create_pipeline_channel,
     server::run_server,
@@ -11,7 +11,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "integration_connector_agent=info,tower_http=debug".into()),
+                .unwrap_or_else(|_| "connectcare=info,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
