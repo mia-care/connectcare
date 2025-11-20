@@ -1,6 +1,5 @@
 pub mod routes;
 
-use axum::Router;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use crate::config::AppConfig;

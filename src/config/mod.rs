@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::sources::jira::JiraSourceConfig;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub integrations: Vec<Integration>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ServerConfig {
     #[serde(default = "default_port")]
     pub port: u16,
@@ -20,14 +20,14 @@ fn default_port() -> u16 {
     8080
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "source")]
 pub struct Integration {
     #[serde(flatten)]
     pub source: SourceConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum SourceConfig {
     #[serde(rename = "jira")]

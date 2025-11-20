@@ -7,7 +7,6 @@ use std::sync::Arc;
 use crate::error::Result;
 use crate::pipeline::PipelineSender;
 use crate::sources::webhook::hmac::HmacValidator;
-use config::JiraSourceConfig;
 use events::get_supported_events;
 use handler::{handle_jira_webhook, JiraWebhookState};
 

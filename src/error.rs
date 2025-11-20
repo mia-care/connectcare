@@ -1,6 +1,5 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use std::fmt;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
