@@ -271,7 +271,7 @@ test_malformed_json() {
 # Test 9: Check MongoDB persistence (issue created)
 # ================================================
 test_mongo_persistence() {
-    sleep 2  # Wait for async processing
+    sleep 5  # Wait for async processing
     local count=$(count_mongo_documents)
     # Should have at least 2 documents (issue_created and issue_updated from filter)
     [ "$count" -ge 2 ]
@@ -281,7 +281,7 @@ test_mongo_persistence() {
 # Test 10: Check mapped version data in MongoDB
 # ================================================
 test_mongo_mapped_data() {
-    sleep 1
+    sleep 5
     local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({versionName: 'v1.0.0'})" 2>/dev/null || echo "")
     echo "$result" | grep -q "versionName" && echo "$result" | grep -q "v1.0.0"
 }
