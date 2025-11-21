@@ -12,6 +12,11 @@ on:
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
+  workflow_run:
+    workflows: ["Rust"]
+    types:
+      - completed
+    branches: [ "main" ]
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -22,6 +27,8 @@ env:
 
 jobs:
   build:
+    # Only run if Rust workflow succeeded (when triggered by workflow_run)
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
 
     runs-on: ubuntu-latest
     permissions:
