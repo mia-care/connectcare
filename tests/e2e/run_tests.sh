@@ -6,7 +6,52 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+echo "================================================"
+echo "Installing Dependencies"
+echo "================================================"
+
+# Detect OS
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo -e "${BLUE}Detected Linux - installing dependencies...${NC}"
+    
+    # Update package list
+    sudo apt-get update -qq
+    
+    # Install MongoDB shell
+    if ! command -v mongosh &> /dev/null; then
+        echo "Installing MongoDB Shell..."
+        curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+        echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+        sudo apt-get update -qq
+        sudo apt-get install -y mongodb-mongosh
+    fi
+    
+    # Install curl and openssl if not present
+    sudo apt-get install -y curl openssl
+    
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo -e "${BLUE}Detected macOS - checking dependencies...${NC}"
+    
+    # Install MongoDB shell via Homebrew
+    if ! command -v mongosh &> /dev/null; then
+        echo "Installing MongoDB Shell..."
+        if command -v brew &> /dev/null; then
+            brew install mongosh
+        else
+            echo -e "${YELLOW}Homebrew not found. Please install mongosh manually:${NC}"
+            echo "brew install mongosh"
+            exit 1
+        fi
+    fi
+    
+    # curl and openssl should be available by default on macOS
+fi
+
+echo -e "${GREEN}Dependencies installed successfully${NC}"
+echo ""
 
 # Configuration
 BASE_URL="http://localhost:8080"
@@ -55,12 +100,13 @@ send_webhook_wrong_signature() {
 # Function to check MongoDB for a document
 check_mongo_document() {
     local event_id="$1"
-    mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({_id: '$event_id'})" 2>/dev/null || echo "null"
+    mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({_id: '$event_id'})" 2>/dev/null || echo ""
 }
 
 # Function to count documents in MongoDB
 count_mongo_documents() {
-    mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.countDocuments({})" 2>/dev/null || echo "0"
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.countDocuments({})" 2>/dev/null || echo "")
+    echo "${result:-0}"
 }
 
 # Function to run a test
@@ -200,7 +246,7 @@ test_mongo_persistence() {
 # ================================================
 test_mongo_mapped_data() {
     sleep 1
-    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({versionName: 'v1.0.0'})")
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({versionName: 'v1.0.0'})" 2>/dev/null || echo "")
     echo "$result" | grep -q "versionName" && echo "$result" | grep -q "v1.0.0"
 }
 

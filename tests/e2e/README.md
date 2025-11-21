@@ -93,14 +93,14 @@ The tests use a specific configuration at `tests/e2e/config.test.json` which inc
 
 ## CI/CD Integration
 
-The tests are automatically run in GitHub Actions as part of the Rust workflow:
+The tests are automatically run in GitHub Actions as part of the unified CI/CD pipeline:
 
-1. Unit tests run first
+1. Build and unit tests run first
 2. If unit tests pass, E2E tests run
-3. Services are started with Docker Compose
-4. Full test suite runs against live services
-5. Logs are captured on failure
-6. Services are cleaned up
+3. If E2E tests pass, security scan runs
+4. If all pass, Docker image is published (on push to main/tags)
+
+See [.github/workflows/ci-cd.yml](../../.github/workflows/ci-cd.yml) for the complete pipeline.
 
 ## Adding New Tests
 
