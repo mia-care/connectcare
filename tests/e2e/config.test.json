@@ -1,0 +1,62 @@
+{
+  "server": {
+    "port": 8080
+  },
+  "mongodb": {
+    "connection_string": "mongodb://mongodb:27017",
+    "database": "connectcare_test",
+    "collection": "events"
+  },
+  "integrations": [
+    {
+      "source": {
+        "type": "jira",
+        "webhookPath": "/jira/webhook",
+        "authentication": {
+          "secret": {
+            "fromEnv": "JIRA_WEBHOOK_SECRET"
+          },
+          "headerName": "X-Hub-Signature"
+        }
+      },
+      "pipelines": [
+        {
+          "processors": [
+            {
+              "type": "filter",
+              "celExpression": "eventType == 'jira:issue_created' || eventType == 'jira:issue_updated'"
+            }
+          ],
+          "sinks": [
+            {
+              "type": "database",
+              "provider": "MONGO"
+            }
+          ]
+        },
+        {
+          "processors": [
+            {
+              "type": "filter",
+              "celExpression": "eventType == 'jira:version_released'"
+            },
+            {
+              "type": "mapper",
+              "outputEvent": {
+                "versionName": "{{ version.name }}",
+                "projectId": "{{ version.projectId }}",
+                "released": "{{ version.released }}"
+              }
+            }
+          ],
+          "sinks": [
+            {
+              "type": "database",
+              "provider": "MONGO"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

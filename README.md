@@ -359,11 +359,57 @@ You can configure multiple pipelines per integration to process events different
 
 ## Development
 
-### Running Tests
+### Quick Commands (Makefile)
 
 ```bash
-cargo test
+make help          # Show all available commands
+make test          # Run unit tests
+make e2e           # Run E2E tests
+make build         # Build release binary
+make docker        # Build Docker image
+make all           # Run formatting, linting, tests, and build
 ```
+
+### Running Tests
+
+**Unit Tests:**
+```bash
+cargo test
+# or
+make test
+```
+
+**End-to-End Tests:**
+
+E2E tests run the full stack (ConnectCare + MongoDB) with Docker Compose and test real webhook scenarios.
+
+```bash
+# Run E2E tests
+./run_e2e_tests.sh
+# or
+make e2e
+
+# Start E2E environment for manual testing
+make e2e-start
+
+# View logs
+make e2e-logs
+
+# Stop E2E environment
+make e2e-stop
+```
+
+**What E2E tests cover:**
+- Health check endpoints
+- Valid webhook requests with HMAC signatures
+- Invalid signatures and missing headers
+- Malformed JSON payloads
+- Event filtering with CEL expressions
+- Event mapping with Handlebars
+- MongoDB persistence and data validation
+- Delete operations
+
+See [tests/e2e/README.md](tests/e2e/README.md) for detailed documentation.
 
 ### Running with Debug Logging
 
