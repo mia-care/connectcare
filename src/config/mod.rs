@@ -3,11 +3,15 @@ pub mod secret;
 use serde::{Deserialize, Serialize};
 use crate::error::Result;
 use crate::sources::jira::JiraSourceConfig;
+use crate::pipeline::processors::ProcessorConfig;
+use crate::pipeline::sinks::SinkConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
     pub server: ServerConfig,
     pub integrations: Vec<Integration>,
+    #[serde(default)]
+    pub mongodb: Option<MongoConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -21,10 +25,24 @@ fn default_port() -> u16 {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "source")]
+pub struct MongoConfig {
+    pub connection_string: String,
+    pub database: String,
+    pub collection: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Integration {
-    #[serde(flatten)]
     pub source: SourceConfig,
+    #[serde(default)]
+    pub pipelines: Vec<Pipeline>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Pipeline {
+    #[serde(default)]
+    pub processors: Vec<ProcessorConfig>,
+    pub sinks: Vec<SinkConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -1,6 +1,6 @@
 # Integration Connector Agent - Rust
 
-A high-performance webhook receiver service for Jira integrations, written in Rust.
+A high-performance webhook receiver service for Jira integrations with configurable event processing pipelines and MongoDB sink support, written in Rust.
 
 ## Features
 
@@ -8,6 +8,10 @@ A high-performance webhook receiver service for Jira integrations, written in Ru
 - ✅ Support for 15+ Jira event types (issues, projects, versions, issue links)
 - ✅ Secure secret management (environment variables, files, or plain text)
 - ✅ Event normalization and pipeline processing
+- ✅ **CEL (Common Expression Language) filters** for event filtering
+- ✅ **Handlebars template-based event mapping**
+- ✅ **MongoDB sink** for persisted event storage
+- ✅ Extensible processor and sink architecture
 - ✅ Health check endpoints
 - ✅ Structured logging with tracing
 
@@ -17,6 +21,7 @@ A high-performance webhook receiver service for Jira integrations, written in Ru
 
 - Rust 1.70+ 
 - Cargo
+- MongoDB (if using database sink)
 
 ### Installation
 
@@ -36,7 +41,12 @@ cp config/config.example.json config/config.json
 export JIRA_WEBHOOK_SECRET="your-secret-here"
 ```
 
-3. Update `config/config.json` as needed.
+3. Configure MongoDB connection (optional):
+```bash
+# Update config.json with your MongoDB connection details
+```
+
+4. Update `config/config.json` as needed.
 
 ### Running
 
@@ -127,6 +137,11 @@ Secrets can be loaded from three sources:
   "server": {
     "port": 8080
   },
+  "mongodb": {
+    "connection_string": "mongodb://localhost:27017",
+    "database": "connectcare",
+    "collection": "events"
+  },
   "integrations": [
     {
       "source": {
@@ -138,7 +153,158 @@ Secrets can be loaded from three sources:
           },
           "headerName": "X-Hub-Signature"
         }
-      }
+      },
+      "pipelines": [
+        {
+          "processors": [
+            {
+              "type": "filter",
+              "celExpression": "eventType == 'jira:version_updated'"
+            },
+            {
+              "type": "mapper",
+              "outputEvent": {
+                "deploymentName": "{{ version.name }}",
+                "projectKey": "{{ version.projectId }}",
+                "status": "{{ version.released }}",
+                "timestamp": "{{ timestamp }}"
+              }
+            }
+          ],
+          "sinks": [
+            {
+              "type": "database",
+              "provider": "MONGO"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Pipeline Processing
+
+### Overview
+
+Events flow through configurable pipelines with processors and sinks:
+
+```
+Webhook → Event Extraction → Processors (Filter, Map) → Sinks (Database)
+```
+
+### Processors
+
+#### Filter Processor
+
+Uses CEL (Common Expression Language) to filter events. Only events matching the expression pass through.
+
+**Available variables:**
+- `eventType` - The event type (e.g., "jira:issue_created")
+- `body` - The entire event body as JSON
+- All top-level fields from the body
+
+**Examples:**
+```json
+{
+  "type": "filter",
+  "celExpression": "eventType == 'jira:version_updated'"
+}
+```
+
+```json
+{
+  "type": "filter",
+  "celExpression": "eventType == 'jira:issue_created' && issue.fields.priority == 'High'"
+}
+```
+
+#### Mapper Processor
+
+Uses Handlebars templates to transform event data into a new structure.
+
+**Example:**
+```json
+{
+  "type": "mapper",
+  "outputEvent": {
+    "deploymentName": "{{ version.name }}",
+    "projectKey": "{{ version.projectId }}",
+    "status": "{{ version.released }}",
+    "timestamp": "{{ timestamp }}",
+    "metadata": {
+      "source": "jira",
+      "type": "version_update"
+    }
+  }
+}
+```
+
+### Sinks
+
+#### Database Sink (MongoDB)
+
+Writes processed events to MongoDB with upsert support.
+
+**Configuration:**
+```json
+{
+  "type": "database",
+  "provider": "MONGO"
+}
+```
+
+**Document structure:**
+- `_id` - Event ID (SHA256 hash of primary keys)
+- `_eventType` - Original event type
+- All fields from the mapped event body
+
+**Operations:**
+- `Write` operations use `replace_one` with upsert
+- `Delete` operations remove the document by `_id`
+
+## Multiple Pipelines
+
+You can configure multiple pipelines per integration to process events differently:
+
+```json
+{
+  "pipelines": [
+    {
+      "processors": [
+        {
+          "type": "filter",
+          "celExpression": "eventType == 'jira:issue_created'"
+        }
+      ],
+      "sinks": [
+        {
+          "type": "database",
+          "provider": "MONGO"
+        }
+      ]
+    },
+    {
+      "processors": [
+        {
+          "type": "filter",
+          "celExpression": "eventType == 'jira:version_updated'"
+        },
+        {
+          "type": "mapper",
+          "outputEvent": {
+            "version": "{{ version.name }}",
+            "released": "{{ version.released }}"
+          }
+        }
+      ],
+      "sinks": [
+        {
+          "type": "database",
+          "provider": "MONGO"
+        }
+      ]
     }
   ]
 }
@@ -167,7 +333,13 @@ RUST_LOG=debug cargo run
 ## Architecture
 
 ```
-HTTP Request → HMAC Validation → Event Extraction → Pipeline → Processing
+HTTP Request → HMAC Validation → Event Extraction → Pipeline Processing → Sinks
+                                                            ↓
+                                                    Filter (CEL)
+                                                            ↓
+                                                    Mapper (Handlebars)
+                                                            ↓
+                                                    Sink (MongoDB)
 ```
 
 ### Pipeline Event Structure
@@ -176,12 +348,22 @@ Each event is normalized to:
 ```rust
 {
   id: String,           // SHA256 hash of primary keys
-  body: Value,          // Full JSON payload
+  body: Value,          // Full JSON payload (or mapped output)
   event_type: String,   // e.g., "jira:issue_updated"
   pk_fields: Vec<...>,  // Primary key fields
   operation: Write|Delete
 }
 ```
+
+### Extensibility
+
+The architecture is designed for extensibility:
+
+- **Processors**: Implement the `Processor` trait to add new processing logic
+- **Sinks**: Implement the `Sink` trait to add new destination types
+- **Sources**: Add new webhook sources by implementing event extraction
+
+Future sink types could include: HTTP endpoints, Kafka, SQS, etc.
 
 ## License
 

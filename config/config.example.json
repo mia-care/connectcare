@@ -2,6 +2,11 @@
   "server": {
     "port": 8080
   },
+  "mongodb": {
+    "connection_string": "mongodb://localhost:27017",
+    "database": "connectcare",
+    "collection": "events"
+  },
   "integrations": [
     {
       "source": {
@@ -13,7 +18,32 @@
           },
           "headerName": "X-Hub-Signature"
         }
-      }
+      },
+      "pipelines": [
+        {
+          "processors": [
+            {
+              "type": "filter",
+              "celExpression": "eventType == 'jira:version_updated'"
+            },
+            {
+              "type": "mapper",
+              "outputEvent": {
+                "deploymentName": "{{ version.name }}",
+                "projectKey": "{{ version.projectId }}",
+                "status": "{{ version.released }}",
+                "timestamp": "{{ timestamp }}"
+              }
+            }
+          ],
+          "sinks": [
+            {
+              "type": "database",
+              "provider": "MONGO"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

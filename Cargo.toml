@@ -7,8 +7,9 @@ edition = "2021"
 # Web framework
 axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
-tower = "0.4"
+tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["trace", "cors"] }
+async-trait = "0.1"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -30,6 +31,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Configuration
 config = "0.14"
+
+# CEL expression evaluation
+cel-interpreter = "0.9"
+
+# Template engine
+handlebars = "5"
+
+# MongoDB
+mongodb = "3"
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }

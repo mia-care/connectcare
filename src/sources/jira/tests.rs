@@ -1,11 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::config::secret::SecretSource;
     use crate::pipeline::create_pipeline_channel;
     use crate::sources::jira::config::{JiraSourceConfig, JiraAuthentication};
+    use crate::sources::jira::register_jira_routes;
     use axum::http::{Request, StatusCode};
     use axum::body::Body;
+    use axum::Router;
     use tower::ServiceExt;
     use hmac::{Hmac, Mac};
     use sha2::Sha256;

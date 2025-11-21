@@ -1,4 +1,7 @@
 pub mod event;
+pub mod processors;
+pub mod sinks;
+pub mod executor;
 
 use tokio::sync::mpsc;
 use event::PipelineEvent;

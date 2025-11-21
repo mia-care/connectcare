@@ -27,6 +27,12 @@ pub enum AppError {
     #[error("Failed to send event to pipeline")]
     PipelineSend,
     
+    #[error("Processing error: {0}")]
+    Processing(String),
+    
+    #[error("Database error: {0}")]
+    Database(String),
+    
     #[error("JSON parse error: {0}")]
     JsonParse(#[from] serde_json::Error),
     
@@ -48,6 +54,8 @@ impl IntoResponse for AppError {
             AppError::UnsupportedEvent(event) => (StatusCode::BAD_REQUEST, format!("Unsupported event: {}", event)),
             AppError::PrimaryKeyPathNotFound(path) => (StatusCode::BAD_REQUEST, format!("Path not found: {}", path)),
             AppError::PipelineSend => (StatusCode::INTERNAL_SERVER_ERROR, "Pipeline error".to_string()),
+            AppError::Processing(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Processing error: {}", e)),
+            AppError::Database(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)),
             AppError::JsonParse(e) => (StatusCode::BAD_REQUEST, format!("Invalid JSON: {}", e)),
             AppError::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("IO error: {}", e)),
             AppError::SecretNotFound(name) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Secret not found: {}", name)),

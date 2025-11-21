@@ -1,6 +1,6 @@
 use connectcare::{
     config::AppConfig,
-    pipeline::create_pipeline_channel,
+    pipeline::{create_pipeline_channel, executor::PipelineExecutor},
     server::run_server,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -20,19 +20,12 @@ async fn main() -> anyhow::Result<()> {
     let config = AppConfig::from_env()?;
     
     // Create pipeline channel
-    let (pipeline_tx, mut pipeline_rx) = create_pipeline_channel(100);
+    let (pipeline_tx, pipeline_rx) = create_pipeline_channel(100);
     
-    // Spawn pipeline processor task
+    // Create and spawn pipeline executor
+    let executor = PipelineExecutor::new(&config).await?;
     tokio::spawn(async move {
-        while let Some(event) = pipeline_rx.recv().await {
-            tracing::info!(
-                "Received event: type={}, id={}, operation={:?}",
-                event.event_type,
-                event.id,
-                event.operation
-            );
-            // TODO: Process event through pipeline processors and sinks
-        }
+        executor.run(pipeline_rx).await;
     });
     
     // Run HTTP server
