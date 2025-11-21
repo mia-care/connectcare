@@ -1,4 +1,4 @@
-# Integration Connector Agent - Rust
+# ConnectCare
 
 A high-performance webhook receiver service for Jira integrations with configurable event processing pipelines and MongoDB sink support, written in Rust.
 
