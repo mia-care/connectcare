@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+# Note: We don't use 'set -e' because we want to run all tests even if some fail
 
 # Colors for output
 RED='\033[0;31m'
@@ -80,6 +80,11 @@ send_webhook() {
     local data="$2"
     local signature=$(generate_signature "$data")
     
+    # Uncomment for debugging:
+    # echo "DEBUG: Sending to $BASE_URL$path" >&2
+    # echo "DEBUG: Signature: sha256=$signature" >&2
+    # echo "DEBUG: Payload: $data" >&2
+    
     curl -s -w "\n%{http_code}" -X POST "$BASE_URL$path" \
         -H "Content-Type: application/json" \
         -H "X-Hub-Signature: sha256=$signature" \
@@ -116,11 +121,21 @@ run_test() {
     
     echo ""
     echo "Test: $test_name"
-    if $test_func; then
+    
+    # Capture both stdout and stderr, and the exit code
+    local output
+    local exit_code
+    output=$($test_func 2>&1)
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
         echo -e "${GREEN}✓ PASSED${NC}"
         ((TESTS_PASSED++))
     else
         echo -e "${RED}✗ FAILED${NC}"
+        if [ -n "$output" ]; then
+            echo -e "${YELLOW}Output: $output${NC}"
+        fi
         ((TESTS_FAILED++))
     fi
 }
@@ -162,7 +177,16 @@ test_issue_created() {
     local payload='{"webhookEvent":"jira:issue_created","timestamp":1234567890,"issue":{"id":"10001","key":"PROJ-123","fields":{"summary":"Test Issue","priority":"High"}}}'
     local response=$(send_webhook "/jira/webhook" "$payload")
     local http_code=$(echo "$response" | tail -n1)
-    [ "$http_code" = "200" ]
+    local body=$(echo "$response" | sed '$d')
+    
+    echo "DEBUG: HTTP Code: $http_code" >&2
+    echo "DEBUG: Response Body: $body" >&2
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Expected 200, got $http_code. Response: $body" >&2
+        return 1
+    fi
+    return 0
 }
 
 # ================================================
@@ -172,7 +196,13 @@ test_issue_updated() {
     local payload='{"webhookEvent":"jira:issue_updated","timestamp":1234567890,"issue":{"id":"10002","key":"PROJ-124","fields":{"summary":"Updated Issue"}},"changelog":{"items":[{"field":"status","fromString":"Open","toString":"In Progress"}]}}'
     local response=$(send_webhook "/jira/webhook" "$payload")
     local http_code=$(echo "$response" | tail -n1)
-    [ "$http_code" = "200" ]
+    local body=$(echo "$response" | sed '$d')
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Expected 200, got $http_code. Response: $body" >&2
+        return 1
+    fi
+    return 0
 }
 
 # ================================================
@@ -214,7 +244,13 @@ test_unsupported_event() {
     local payload='{"webhookEvent":"jira:board_created","board":{"id":"1","name":"Test Board"}}'
     local response=$(send_webhook "/jira/webhook" "$payload")
     local http_code=$(echo "$response" | tail -n1)
-    [ "$http_code" = "200" ]
+    local body=$(echo "$response" | sed '$d')
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Expected 200, got $http_code. Response: $body" >&2
+        return 1
+    fi
+    return 0
 }
 
 # ================================================

@@ -36,10 +36,14 @@ pub async fn handle_jira_webhook(
     // Step 3: Extract event type
     let event_type = get_event_type(&json_body)?;
     
-    // Step 4: Get event configuration
-    let event_config = state.events
-        .get(&event_type)
-        .ok_or_else(|| AppError::UnsupportedEvent(event_type.clone()))?;
+    // Step 4: Get event configuration (skip if not configured)
+    let event_config = match state.events.get(&event_type) {
+        Some(config) => config,
+        None => {
+            tracing::debug!("Event type not configured, accepting but will be filtered: {}", event_type);
+            return Ok(StatusCode::OK);
+        }
+    };
     
     // Step 5: Extract primary keys
     let pk_fields = (event_config.get_field_id)(&json_body)?;
