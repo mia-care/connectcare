@@ -4,26 +4,73 @@ A high-performance webhook receiver service for Jira integrations with configura
 
 ## Features
 
-- ✅ Jira webhook integration with HMAC-SHA256 signature validation
-- ✅ Support for 15+ Jira event types (issues, projects, versions, issue links)
-- ✅ Secure secret management (environment variables, files, or plain text)
-- ✅ Event normalization and pipeline processing
-- ✅ **CEL (Common Expression Language) filters** for event filtering
-- ✅ **Handlebars template-based event mapping**
-- ✅ **MongoDB sink** for persisted event storage
-- ✅ Extensible processor and sink architecture
-- ✅ Health check endpoints
-- ✅ Structured logging with tracing
+- Jira webhook integration with HMAC-SHA256 signature validation
+- Support for 15+ Jira event types (issues, projects, versions, issue links)
+- Secure secret management (environment variables, files, or plain text)
+- Event normalization and pipeline processing
+- **CEL (Common Expression Language) filters** for event filtering
+- **Handlebars template-based event mapping**
+- **MongoDB sink** for persisted event storage
+- Extensible processor and sink architecture
+- Health check endpoints
+- Structured logging with tracing
+- **Docker & Docker Compose support** with distroless images
+
+## Documentation
+
+- [Quick Start](#quick-start) - Get started quickly with Docker or from source
+- [DOCKER.md](DOCKER.md) - Comprehensive Docker deployment guide
+- [API Endpoints](#api-endpoints) - Available HTTP endpoints
+- [Pipeline Processing](#pipeline-processing) - Configure filters, mappers, and sinks
+- [Configuration](#configuration) - Detailed configuration options
 
 ## Quick Start
 
 ### Prerequisites
 
+#### Local Development
 - Rust 1.70+ 
 - Cargo
 - MongoDB (if using database sink)
 
+#### Docker
+- Docker 20.10+
+- Docker Compose 2.0+ (optional, for full stack)
+
 ### Installation
+
+#### Option 1: Docker (Recommended)
+
+**Build and run with Docker:**
+```bash
+# Build the image
+docker build -t connectcare:latest .
+
+# Run with environment variables
+docker run -d \
+  -p 8080:8080 \
+  -e JIRA_WEBHOOK_SECRET="your-secret-here" \
+  -e RUST_LOG=info \
+  -v $(pwd)/config/config.json:/app/config/config.json:ro \
+  connectcare:latest
+```
+
+**Or use Docker Compose (includes MongoDB):**
+```bash
+# Set your secret
+export JIRA_WEBHOOK_SECRET="your-secret-here"
+
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f connectcare
+
+# Stop services
+docker-compose down
+```
+
+#### Option 2: Build from Source
 
 ```bash
 cargo build --release
@@ -364,6 +411,69 @@ The architecture is designed for extensibility:
 - **Sources**: Add new webhook sources by implementing event extraction
 
 Future sink types could include: HTTP endpoints, Kafka, SQS, etc.
+
+## Docker
+
+### Dockerfile Features
+
+- **Multi-stage build** for minimal image size
+- **Distroless base image** (`gcr.io/distroless/cc-debian12`) for security
+- **Optimized layer caching** for faster rebuilds
+- **No shell or package manager** in final image (security hardening)
+
+### Docker Compose Stack
+
+The `docker-compose.yml` provides a complete stack:
+- **connectcare** service on port 8080
+- **mongodb** service on port 27017
+- Automatic network configuration
+- Volume persistence for MongoDB data
+- Health checks and restart policies
+
+### Building
+
+```bash
+# Build the image
+docker build -t connectcare:latest .
+
+# Build with specific tag
+docker build -t myregistry/connectcare:v1.0.0 .
+```
+
+### Running
+
+```bash
+# Run with Docker
+docker run -d \
+  --name connectcare \
+  -p 8080:8080 \
+  -e JIRA_WEBHOOK_SECRET="your-secret" \
+  -e RUST_LOG=info \
+  -v $(pwd)/config/config.json:/app/config/config.json:ro \
+  connectcare:latest
+
+# Run with Docker Compose (includes MongoDB)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Check health
+curl http://localhost:8080/-/healthz
+```
+
+### Environment Variables
+
+- `RUST_LOG` - Logging level (default: `info`)
+- `CONFIGURATION_PATH` - Config file path (default: `/app/config/config.json`)
+- `JIRA_WEBHOOK_SECRET` - Jira webhook secret (if using env-based secrets)
+
+### Volumes
+
+Mount your configuration file:
+```bash
+-v /path/to/your/config.json:/app/config/config.json:ro
+```
 
 ## License
 

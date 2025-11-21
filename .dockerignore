@@ -1,0 +1,30 @@
+# Build artifacts
+target/
+*.o
+*.so
+*.a
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+tests/
+
+# Config files (will be mounted or provided at runtime)
+config/config.json
+
+# Misc
+.env
+.DS_Store
