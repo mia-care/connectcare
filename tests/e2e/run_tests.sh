@@ -23,10 +23,18 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Install MongoDB shell
     if ! command -v mongosh &> /dev/null; then
         echo "Installing MongoDB Shell..."
+        # Use Ubuntu 22.04 (jammy) repo which is more compatible
         curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
-        echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+        echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
         sudo apt-get update -qq
-        sudo apt-get install -y mongodb-mongosh
+        sudo apt-get install -y mongodb-mongosh || {
+            echo -e "${RED}Failed to install mongodb-mongosh via apt${NC}"
+            echo "Trying alternative installation method..."
+            # Download directly from MongoDB
+            wget -qO mongosh.deb https://downloads.mongodb.com/compass/mongodb-mongosh_2.1.1_amd64.deb
+            sudo dpkg -i mongosh.deb
+            rm mongosh.deb
+        }
     fi
     
     # Install curl and openssl if not present
@@ -110,7 +118,15 @@ check_mongo_document() {
 
 # Function to count documents in MongoDB
 count_mongo_documents() {
-    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.countDocuments({})" 2>/dev/null || echo "")
+    if ! command -v mongosh &> /dev/null; then
+        echo "ERROR: mongosh not installed" >&2
+        return 1
+    fi
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.countDocuments({})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to query MongoDB: $result" >&2
+        return 1
+    fi
     echo "${result:-0}"
 }
 
@@ -271,19 +287,46 @@ test_malformed_json() {
 # Test 9: Check MongoDB persistence (issue created)
 # ================================================
 test_mongo_persistence() {
-    sleep 5  # Wait for async processing
+    sleep 2  # Wait for async processing
     local count=$(count_mongo_documents)
+    local exit_code=$?
+    
+    if [ $exit_code -ne 0 ]; then
+        echo "Failed to query MongoDB: $count" >&2
+        return 1
+    fi
+    
     # Should have at least 2 documents (issue_created and issue_updated from filter)
-    [ "$count" -ge 2 ]
+    if [ "$count" -ge 2 ]; then
+        return 0
+    else
+        echo "Expected at least 2 documents, found $count" >&2
+        return 1
+    fi
 }
 
 # ================================================
 # Test 10: Check mapped version data in MongoDB
 # ================================================
 test_mongo_mapped_data() {
-    sleep 5
-    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({versionName: 'v1.0.0'})" 2>/dev/null || echo "")
-    echo "$result" | grep -q "versionName" && echo "$result" | grep -q "v1.0.0"
+    sleep 1
+    if ! command -v mongosh &> /dev/null; then
+        echo "ERROR: mongosh not installed" >&2
+        return 1
+    fi
+    
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({versionName: 'v1.0.0'})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Failed to query MongoDB: $result" >&2
+        return 1
+    fi
+    
+    if echo "$result" | grep -q "versionName" && echo "$result" | grep -q "v1.0.0"; then
+        return 0
+    else
+        echo "Expected to find document with versionName='v1.0.0', got: $result" >&2
+        return 1
+    fi
 }
 
 # ================================================
