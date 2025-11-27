@@ -21,6 +21,18 @@ impl DatabaseSink {
         
         Ok(Self {
             client,
+            database,
+            collection,
+        })
+    }
+    
+    pub async fn with_collection(mongo_url: &str, database: &str, collection: &str) -> Result<Self> {
+        let client = Client::with_uri_str(mongo_url)
+            .await
+            .map_err(|e| AppError::Database(format!("Failed to connect to MongoDB: {}", e)))?;
+        
+        Ok(Self {
+            client,
             database: database.to_string(),
             collection: collection.to_string(),
         })

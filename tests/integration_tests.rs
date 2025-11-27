@@ -25,7 +25,7 @@ async fn test_end_to_end_jira_webhook() {
         server: ServerConfig { port: 8080 },
         integrations: vec![Integration {
             source: SourceConfig::Jira(JiraSourceConfig {
-                webhook_path: "/jira/webhook".to_string(),
+                webhook_path: Some("/jira/webhook".to_string()),
                 authentication: JiraAuthentication {
                     secret: SecretSource::Plain("integration_test_secret".to_string()),
                     header_name: "X-Hub-Signature".to_string(),

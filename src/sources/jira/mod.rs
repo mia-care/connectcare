@@ -29,20 +29,19 @@ pub fn register_jira_routes(
     // Get supported events
     let events = get_supported_events();
     
-    // Create shared state
     let state = Arc::new(JiraWebhookState {
         validator,
         events,
         pipeline_tx,
     });
     
-    // Register webhook route
+    let webhook_path = config.get_webhook_path();
     let router = router.route(
-        &config.webhook_path,
+        &webhook_path,
         post(handle_jira_webhook).with_state(state),
     );
     
-    tracing::info!("Registered Jira webhook at: {}", config.webhook_path);
+    tracing::info!("Registered Jira webhook at: {}", webhook_path);
     
     Ok(router)
 }

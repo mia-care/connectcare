@@ -2,12 +2,18 @@ pub mod database;
 
 use crate::error::Result;
 use crate::pipeline::event::PipelineEvent;
+use crate::config::secret::SecretSource;
 use serde::{Deserialize, Serialize};
 
-/// Sink configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum SinkConfig {
+    Mongo {
+        url: SecretSource,
+        collection: String,
+        #[serde(default)]
+        insert_only: bool,
+    },
     #[serde(rename = "database")]
     Database { 
         provider: DatabaseProvider 
@@ -20,9 +26,7 @@ pub enum DatabaseProvider {
     Mongo,
 }
 
-/// Trait for event sinks
 #[async_trait::async_trait]
 pub trait Sink: Send + Sync {
-    /// Write an event to the sink
     async fn write(&self, event: &PipelineEvent) -> Result<()>;
 }

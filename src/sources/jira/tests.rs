@@ -24,7 +24,7 @@ mod tests {
         let (tx, mut rx) = create_pipeline_channel(100);
         
         let config = JiraSourceConfig {
-            webhook_path: "/jira/webhook".to_string(),
+            webhook_path: Some("/jira/webhook".to_string()),
             authentication: JiraAuthentication {
                 secret: SecretSource::Plain("test_secret".to_string()),
                 header_name: "X-Hub-Signature".to_string(),
@@ -63,7 +63,7 @@ mod tests {
         let (tx, _rx) = create_pipeline_channel(100);
         
         let config = JiraSourceConfig {
-            webhook_path: "/jira/webhook".to_string(),
+            webhook_path: Some("/jira/webhook".to_string()),
             authentication: JiraAuthentication {
                 secret: SecretSource::Plain("test_secret".to_string()),
                 header_name: "X-Hub-Signature".to_string(),
@@ -96,7 +96,7 @@ mod tests {
         let (tx, _rx) = create_pipeline_channel(100);
         
         let config = JiraSourceConfig {
-            webhook_path: "/jira/webhook".to_string(),
+            webhook_path: Some("/jira/webhook".to_string()),
             authentication: JiraAuthentication {
                 secret: SecretSource::Plain("test_secret".to_string()),
                 header_name: "X-Hub-Signature".to_string(),

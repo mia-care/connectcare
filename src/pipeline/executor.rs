@@ -48,11 +48,18 @@ impl PipelineExecutor {
             }
         }
         
-        // Build sinks
         let mut sinks: Vec<Arc<dyn Sink>> = Vec::new();
         
         for sink_config in &pipeline_config.sinks {
             match sink_config {
+                crate::pipeline::sinks::SinkConfig::Mongo { url, collection, insert_only: _ } => {
+                    let mongo_url = url.resolve()?;
+                    
+                    let (base_url, database) = Self::parse_mongo_url_for_sink(&mongo_url)?;
+                    let sink = DatabaseSink::with_collection(&base_url, &database, collection).await?;
+                    
+                    sinks.push(Arc::new(sink));
+                }
                 crate::pipeline::sinks::SinkConfig::Database { provider } => {
                     match provider {
                         DatabaseProvider::Mongo => {
@@ -68,6 +75,33 @@ impl PipelineExecutor {
         }
         
         Ok(PipelineInstance { processors, sinks })
+    }
+    
+    fn parse_mongo_url_for_sink(url: &str) -> Result<(String, String)> {
+        let url_without_protocol = url.strip_prefix("mongodb://")
+            .or_else(|| url.strip_prefix("mongodb+srv://"))
+            .ok_or_else(|| crate::error::AppError::Config(
+                "Invalid MongoDB URL: must start with mongodb:// or mongodb+srv://".to_string()
+            ))?;
+        
+        if let Some(slash_pos) = url_without_protocol.find('/') {
+            let base = &url[..url.len() - url_without_protocol.len() + slash_pos];
+            let path = &url_without_protocol[slash_pos + 1..];
+            
+            let database = path.split('?').next().unwrap_or(path).split('/').next().unwrap_or("");
+            
+            if database.is_empty() {
+                return Err(crate::error::AppError::Config(
+                    "MongoDB URL must include database name (format: mongodb://host:port/database)".to_string()
+                ));
+            }
+            
+            Ok((base.to_string(), database.to_string()))
+        } else {
+            Err(crate::error::AppError::Config(
+                "MongoDB URL must include database name (format: mongodb://host:port/database)".to_string()
+            ))
+        }
     }
     
     pub async fn run(self, mut receiver: PipelineReceiver) {

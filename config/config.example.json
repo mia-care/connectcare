@@ -6,12 +6,10 @@
     {
       "source": {
         "type": "jira",
-        "webhookPath": "/jira/webhook",
         "authentication": {
           "secret": {
             "fromEnv": "JIRA_WEBHOOK_SECRET"
-          },
-          "headerName": "X-Hub-Signature"
+          }
         }
       },
       "pipelines": [
@@ -33,8 +31,11 @@
           ],
           "sinks": [
             {
-              "type": "database",
-              "provider": "MONGO"
+              "type": "mongo",
+              "url": {
+                "fromEnv": "MONGO_URL"
+              },
+              "collection": "events"
             }
           ]
         }
