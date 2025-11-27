@@ -20,11 +20,16 @@ impl HmacValidator {
     }
     
     pub fn validate(&self, body: &[u8], signature_header: &str) -> Result<()> {
-        // Jira sends signature as "sha256=<hex_signature>"
+        tracing::debug!("Validating HMAC signature. Header: {}", signature_header);
+        
         let signature = signature_header
             .strip_prefix("sha256=")
-            .ok_or(AppError::InvalidSignatureFormat)?;
+            .ok_or_else(|| {
+                tracing::error!("Invalid signature format. Expected 'sha256=<hex>', got: {}", signature_header);
+                AppError::InvalidSignatureFormat
+            })?;
         
+        tracing::debug!("Extracted signature: {}", signature);
         self.validate_body(body, signature)
     }
     
@@ -37,14 +42,19 @@ impl HmacValidator {
         let code_bytes = result.into_bytes();
         let computed_signature = hex::encode(code_bytes);
         
-        // Use constant-time comparison to prevent timing attacks
+        tracing::debug!("Computed signature: {}", computed_signature);
+        tracing::debug!("Expected signature: {}", expected_signature);
+        tracing::debug!("Body length: {} bytes", body.len());
+        
         let matches = computed_signature.as_bytes()
             .ct_eq(expected_signature.as_bytes())
             .into();
         
         if matches {
+            tracing::debug!("Signature validation successful");
             Ok(())
         } else {
+            tracing::error!("Signature mismatch! Computed: {}, Expected: {}", computed_signature, expected_signature);
             Err(AppError::HmacValidation)
         }
     }
