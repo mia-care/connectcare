@@ -52,7 +52,7 @@ docker run -d \
   --name connectcare \
   -p 8080:8080 \
   -e JIRA_WEBHOOK_SECRET="your-secret-here" \
-  -e RUST_LOG=info \
+  -e LOG_LEVEL=info \
   -v $(pwd)/config/config.json:/app/config/config.json:ro \
   connectcare:latest
 
@@ -71,8 +71,9 @@ docker logs -f connectcare
 ### Environment Variables
 
 - `JIRA_WEBHOOK_SECRET` - Your Jira webhook secret
-- `RUST_LOG` - Logging level (debug, info, warn, error)
+- `LOG_LEVEL` - Logging level (debug, info, warn, error)
 - `CONFIGURATION_PATH` - Path to config file (default: `/app/config/config.json`)
+- `MONGO_URL` - MongoDB connection string (optional, can also be configured per-sink in config file)
 
 ### Volume Mounts
 

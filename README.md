@@ -51,7 +51,7 @@ docker run -d \
   -p 8080:8080 \
   -e JIRA_WEBHOOK_SECRET="your-secret-here" \
   -e MONGO_URL="your-mongodb-connection-string" \
-  -e RUST_LOG=info \
+  -e LOG_LEVEL=info \
   -v $(pwd)/config/config.json:/app/config/config.json:ro \
   connectcare:latest
 ```
@@ -103,7 +103,7 @@ export MONGO_URL="mongodb://localhost:27017/connectcare/events"
 export CONFIGURATION_PATH=config/config.json
 
 # Set log level (optional)
-export RUST_LOG=info
+export LOG_LEVEL=info
 
 # Run the service
 cargo run --release
@@ -410,7 +410,7 @@ See [tests/e2e/README.md](tests/e2e/README.md) for detailed documentation.
 ### Running with Debug Logging
 
 ```bash
-RUST_LOG=debug cargo run
+LOG_LEVEL=debug cargo run
 ```
 
 ## Security
@@ -490,7 +490,7 @@ docker run -d \
   --name connectcare \
   -p 8080:8080 \
   -e JIRA_WEBHOOK_SECRET="your-secret" \
-  -e RUST_LOG=info \
+  -e LOG_LEVEL=info \
   -v $(pwd)/config/config.json:/app/config/config.json:ro \
   connectcare:latest
 
@@ -506,9 +506,10 @@ curl http://localhost:8080/-/healthz
 
 ### Environment Variables
 
-- `RUST_LOG` - Logging level (default: `info`)
+- `LOG_LEVEL` - Logging level (default: `info`)
 - `CONFIGURATION_PATH` - Config file path (default: `/app/config/config.json`)
 - `JIRA_WEBHOOK_SECRET` - Jira webhook secret (if using env-based secrets)
+- `MONGO_URL` - MongoDB connection string (optional, can also be configured per-sink in config file)
 
 ### Volumes
 

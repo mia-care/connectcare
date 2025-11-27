@@ -22,7 +22,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - RUST_LOG=debug
+      - LOG_LEVEL=debug
       - CONFIGURATION_PATH=/app/config/config.json
       - JIRA_WEBHOOK_SECRET=test_secret_12345
       - MONGO_URL=mongodb://mongodb:27017/connectcare_test/events
