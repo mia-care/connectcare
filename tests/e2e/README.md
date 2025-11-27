@@ -135,7 +135,7 @@ docker-compose -f docker-compose.test.yml logs
 Ensure services are healthy:
 ```bash
 docker-compose -f docker-compose.test.yml ps
-curl http://localhost:8080/-/healthz
+curl http://localhost:3000/-/healthz
 ```
 
 ### MongoDB connection issues

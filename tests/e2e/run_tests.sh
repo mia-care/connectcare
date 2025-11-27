@@ -62,7 +62,7 @@ echo -e "${GREEN}Dependencies installed successfully${NC}"
 echo ""
 
 # Configuration
-BASE_URL="http://localhost:8080"
+BASE_URL="http://localhost:3000"
 SECRET="test_secret_12345"
 MONGO_URI="mongodb://localhost:27017"
 DB_NAME="connectcare_test"

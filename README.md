@@ -48,7 +48,7 @@ docker build -t connectcare:latest .
 
 # Run with environment variables
 docker run -d \
-  -p 8080:8080 \
+  -p 3000:3000 \
   -e JIRA_WEBHOOK_SECRET="your-secret-here" \
   -e MONGO_URL="your-mongodb-connection-string" \
   -e LOG_LEVEL=info \
@@ -109,7 +109,7 @@ export LOG_LEVEL=info
 cargo run --release
 ```
 
-The service will start on port 8080 (configurable).
+The service will start on port 3000 by default (configurable via `HTTP_PORT` environment variable).
 
 ## API Endpoints
 
@@ -182,9 +182,6 @@ Secrets can be loaded from three sources:
 
 ```json
 {
-  "server": {
-    "port": 8080
-  },
   "integrations": [
     {
       "source": {
@@ -466,7 +463,7 @@ Future sink types could include: HTTP endpoints, Kafka, SQS, etc.
 ### Docker Compose Stack
 
 The `docker-compose.yml` provides a complete stack:
-- **connectcare** service on port 8080
+- **connectcare** service on port 3000
 - **mongodb** service on port 27017
 - Automatic network configuration
 - Volume persistence for MongoDB data
@@ -488,7 +485,7 @@ docker build -t myregistry/connectcare:v1.0.0 .
 # Run with Docker
 docker run -d \
   --name connectcare \
-  -p 8080:8080 \
+  -p 3000:3000 \
   -e JIRA_WEBHOOK_SECRET="your-secret" \
   -e LOG_LEVEL=info \
   -v $(pwd)/config/config.json:/app/config/config.json:ro \
@@ -501,11 +498,12 @@ docker-compose up -d
 docker-compose logs -f
 
 # Check health
-curl http://localhost:8080/-/healthz
+curl http://localhost:3000/-/healthz
 ```
 
 ### Environment Variables
 
+- `HTTP_PORT` - Server port (default: `3000`)
 - `LOG_LEVEL` - Logging level (default: `info`)
 - `CONFIGURATION_PATH` - Config file path (default: `/app/config/config.json`)
 - `JIRA_WEBHOOK_SECRET` - Jira webhook secret (if using env-based secrets)
@@ -517,7 +515,3 @@ Mount your configuration file:
 ```bash
 -v /path/to/your/config.json:/app/config/config.json:ro
 ```
-
-## License
-
-MIT

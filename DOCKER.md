@@ -36,7 +36,7 @@ This guide helps you quickly get ConnectCare running using Docker.
 
 6. **Verify it's running:**
    ```bash
-   curl http://localhost:8080/-/healthz
+   curl http://localhost:3000/-/healthz
    ```
 
 ## Docker Only (Without MongoDB)
@@ -50,7 +50,7 @@ docker build -t connectcare:latest .
 # Run the container
 docker run -d \
   --name connectcare \
-  -p 8080:8080 \
+  -p 3000:3000 \
   -e JIRA_WEBHOOK_SECRET="your-secret-here" \
   -e LOG_LEVEL=info \
   -v $(pwd)/config/config.json:/app/config/config.json:ro \
@@ -70,6 +70,7 @@ docker logs -f connectcare
 
 ### Environment Variables
 
+- `HTTP_PORT` - Server port (default: `3000`)
 - `JIRA_WEBHOOK_SECRET` - Your Jira webhook secret
 - `LOG_LEVEL` - Logging level (debug, info, warn, error)
 - `CONFIGURATION_PATH` - Path to config file (default: `/app/config/config.json`)
@@ -119,7 +120,7 @@ Test the webhook endpoint:
 echo -n '{"test":"data"}' | openssl dgst -sha256 -hmac "your-secret-here" | cut -d' ' -f2
 
 # Send a test request
-curl -X POST http://localhost:8080/jira/webhook \
+curl -X POST http://localhost:3000/jira/webhook \
   -H "Content-Type: application/json" \
   -H "X-Hub-Signature: sha256=<signature-from-above>" \
   -d '{"webhookEvent":"jira:issue_created","issue":{"id":"12345","key":"TEST-1"}}'

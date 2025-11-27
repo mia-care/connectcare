@@ -8,18 +8,7 @@ use crate::pipeline::sinks::SinkConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AppConfig {
-    pub server: ServerConfig,
     pub integrations: Vec<Integration>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ServerConfig {
-    #[serde(default = "default_port")]
-    pub port: u16,
-}
-
-fn default_port() -> u16 {
-    8080
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -54,6 +43,13 @@ impl AppConfig {
         let config_path = std::env::var("CONFIGURATION_PATH")
             .unwrap_or_else(|_| "config/config.json".to_string());
         Self::from_file(&config_path)
+    }
+    
+    pub fn get_port() -> u16 {
+        std::env::var("HTTP_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(3000)
     }
     
     pub fn mongodb_url() -> Result<String> {
