@@ -25,6 +25,7 @@ services:
       - RUST_LOG=debug
       - CONFIGURATION_PATH=/app/config/config.json
       - JIRA_WEBHOOK_SECRET=test_secret_12345
+      - MONGO_URL=mongodb://mongodb:27017/connectcare_test/events
     volumes:
       - ./tests/e2e/config.test.json:/app/config/config.json:ro
     depends_on:

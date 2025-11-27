@@ -59,7 +59,7 @@ impl Processor for FilterProcessor {
 mod tests {
     use super::*;
     use serde_json::json;
-    use crate::pipeline::event::{Operation, PkField};
+    use crate::pipeline::event::{Operation};
 
     #[tokio::test]
     async fn test_filter_passes() {

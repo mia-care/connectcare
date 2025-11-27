@@ -9,9 +9,9 @@ services:
       - RUST_LOG=info
       - CONFIGURATION_PATH=/app/config/config.json
       - JIRA_WEBHOOK_SECRET=${JIRA_WEBHOOK_SECRET:-your-secret-here}
+      - MONGO_URL=${MONGO_URL:-mongodb://mongodb:27017/connectcare/events}
     volumes:
       # Mount your custom config file here
-      # Note: Use "mongodb://mongodb:27017" as the connection string when using docker-compose
       - ./config/config.json:/app/config/config.json:ro
     networks:
       - connectcare-network

@@ -88,9 +88,9 @@ cp config/config.example.json config/config.json
 export JIRA_WEBHOOK_SECRET="your-secret-here"
 ```
 
-3. Configure MongoDB connection (optional):
+3. Set MongoDB connection URL:
 ```bash
-# Update config.json with your MongoDB connection details
+export MONGO_URL="mongodb://localhost:27017/connectcare/events"
 ```
 
 4. Update `config/config.json` as needed.
@@ -183,11 +183,6 @@ Secrets can be loaded from three sources:
 {
   "server": {
     "port": 8080
-  },
-  "mongodb": {
-    "connection_string": "mongodb://localhost:27017",
-    "database": "connectcare",
-    "collection": "events"
   },
   "integrations": [
     {

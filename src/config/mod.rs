@@ -10,8 +10,6 @@ use crate::pipeline::sinks::SinkConfig;
 pub struct AppConfig {
     pub server: ServerConfig,
     pub integrations: Vec<Integration>,
-    #[serde(default)]
-    pub mongodb: Option<MongoConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -22,13 +20,6 @@ pub struct ServerConfig {
 
 fn default_port() -> u16 {
     8080
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct MongoConfig {
-    pub connection_string: String,
-    pub database: String,
-    pub collection: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -63,5 +54,10 @@ impl AppConfig {
         let config_path = std::env::var("CONFIGURATION_PATH")
             .unwrap_or_else(|_| "config/config.json".to_string());
         Self::from_file(&config_path)
+    }
+    
+    pub fn mongodb_url() -> Result<String> {
+        std::env::var("MONGO_URL")
+            .map_err(|_| crate::error::AppError::Config("MONGO_URL environment variable is required".to_string()))
     }
 }

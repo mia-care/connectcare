@@ -12,16 +12,52 @@ pub struct DatabaseSink {
 }
 
 impl DatabaseSink {
-    pub async fn new(connection_string: &str, database: &str, collection: &str) -> Result<Self> {
-        let client = Client::with_uri_str(connection_string)
+    pub async fn new(mongo_url: &str) -> Result<Self> {
+        let client = Client::with_uri_str(mongo_url)
             .await
             .map_err(|e| AppError::Database(format!("Failed to connect to MongoDB: {}", e)))?;
+        
+        let (database, collection) = Self::parse_mongo_url(mongo_url)?;
         
         Ok(Self {
             client,
             database: database.to_string(),
             collection: collection.to_string(),
         })
+    }
+    
+    fn parse_mongo_url(url: &str) -> Result<(String, String)> {
+        let url_without_protocol = url.strip_prefix("mongodb://")
+            .or_else(|| url.strip_prefix("mongodb+srv://"))
+            .ok_or_else(|| AppError::Config(
+                "Invalid MongoDB URL: must start with mongodb:// or mongodb+srv://".to_string()
+            ))?;
+        
+        let first_slash_pos = url_without_protocol.find('/')
+            .ok_or_else(|| AppError::Config(
+                "Invalid MongoDB URL: missing database path".to_string()
+            ))?;
+        
+        let path = &url_without_protocol[first_slash_pos + 1..];
+        
+        let parts: Vec<&str> = path.split('/').collect();
+        
+        if parts.len() < 2 {
+            return Err(AppError::Config(
+                "Invalid MongoDB URL: must include both database and collection (format: mongodb://host:port/database/collection)".to_string()
+            ));
+        }
+        
+        let database = parts[0].to_string();
+        let collection = parts[1].split('?').next().unwrap_or(parts[1]).to_string();
+        
+        if database.is_empty() || collection.is_empty() {
+            return Err(AppError::Config(
+                "Invalid MongoDB URL: database and collection cannot be empty".to_string()
+            ));
+        }
+        
+        Ok((database, collection))
     }
     
     fn get_collection(&self) -> Collection<bson::Document> {

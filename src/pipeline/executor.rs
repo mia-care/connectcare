@@ -31,7 +31,7 @@ impl PipelineExecutor {
         Ok(Self { pipelines })
     }
     
-    async fn create_pipeline(config: &AppConfig, pipeline_config: &Pipeline) -> Result<PipelineInstance> {
+    async fn create_pipeline(_config: &AppConfig, pipeline_config: &Pipeline) -> Result<PipelineInstance> {
         // Build processors
         let mut processors: Vec<Box<dyn Processor>> = Vec::new();
         
@@ -56,17 +56,9 @@ impl PipelineExecutor {
                 crate::pipeline::sinks::SinkConfig::Database { provider } => {
                     match provider {
                         DatabaseProvider::Mongo => {
-                            // Get MongoDB config from app config
-                            let mongo_config = config.mongodb.as_ref()
-                                .ok_or_else(|| crate::error::AppError::Config(
-                                    "MongoDB configuration not found".to_string()
-                                ))?;
+                            let mongo_url = crate::config::AppConfig::mongodb_url()?;
                             
-                            let sink = DatabaseSink::new(
-                                &mongo_config.connection_string,
-                                &mongo_config.database,
-                                &mongo_config.collection,
-                            ).await?;
+                            let sink = DatabaseSink::new(&mongo_url).await?;
                             
                             sinks.push(Arc::new(sink));
                         }

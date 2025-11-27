@@ -64,7 +64,7 @@ impl Processor for MapperProcessor {
 mod tests {
     use super::*;
     use serde_json::json;
-    use crate::pipeline::event::{Operation, PkField};
+    use crate::pipeline::event::{Operation};
 
     #[tokio::test]
     async fn test_simple_mapping() {

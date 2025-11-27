@@ -23,7 +23,6 @@ fn generate_signature(secret: &str, body: &[u8]) -> String {
 async fn test_end_to_end_jira_webhook() {
     let config = AppConfig {
         server: ServerConfig { port: 8080 },
-        mongodb: None,
         integrations: vec![Integration {
             source: SourceConfig::Jira(JiraSourceConfig {
                 webhook_path: "/jira/webhook".to_string(),
