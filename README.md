@@ -50,6 +50,7 @@ docker build -t connectcare:latest .
 docker run -d \
   -p 8080:8080 \
   -e JIRA_WEBHOOK_SECRET="your-secret-here" \
+  -e MONGO_URL="your-mongodb-connection-string" \
   -e RUST_LOG=info \
   -v $(pwd)/config/config.json:/app/config/config.json:ro \
   connectcare:latest
