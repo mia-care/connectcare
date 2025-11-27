@@ -9,10 +9,19 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy all source files
+# Copy only dependency files first for better caching
+COPY Cargo.toml Cargo.lock ./
+
+# Create a dummy main.rs to build dependencies
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src
+
+# Now copy the actual source code
 COPY . .
 
-# Build the application
+# Build the application (dependencies are already cached)
 RUN cargo build --release
 
 # Runtime stage - using distroless
@@ -27,10 +36,10 @@ COPY config/config.example.json /app/config/config.json
 WORKDIR /app
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3000
 
 # Set default environment variables
-ENV RUST_LOG=info
+ENV LOG_LEVEL=info
 ENV CONFIGURATION_PATH=/app/config/config.json
 
 # Run the binary
