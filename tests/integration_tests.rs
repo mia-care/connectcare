@@ -1,5 +1,5 @@
 use connectcare::{
-    config::{AppConfig, ServerConfig, Integration, SourceConfig},
+    config::{AppConfig, Integration, SourceConfig},
     sources::jira::{JiraSourceConfig, config::{JiraAuthentication}},
     config::secret::SecretSource,
     pipeline::create_pipeline_channel,
@@ -22,7 +22,6 @@ fn generate_signature(secret: &str, body: &[u8]) -> String {
 #[tokio::test]
 async fn test_end_to_end_jira_webhook() {
     let config = AppConfig {
-        server: ServerConfig { port: 8080 },
         integrations: vec![Integration {
             source: SourceConfig::Jira(JiraSourceConfig {
                 webhook_path: Some("/jira/webhook".to_string()),
