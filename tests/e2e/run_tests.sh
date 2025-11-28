@@ -355,6 +355,174 @@ test_project_created() {
     [ "$http_code" = "200" ]
 }
 
+# ================================================
+# Test 13: Type preservation with nested objects, arrays, and numbers
+# ================================================
+test_type_preservation() {
+    local payload='{"webhookEvent":"jira:issue_created","timestamp":1234567890,"issue":{"id":"10100","key":"TYPE-1","fields":{"summary":"Type Test","priority":{"id":"3","name":"High"},"labels":["bug","urgent","backend"],"customfield_12345":42,"assignee":{"accountId":"user123","displayName":"John Doe","emailAddress":"john@example.com"},"fixVersions":[{"id":"19410","name":"v1.0.0"}]}}}'
+    local response=$(send_webhook "/jira/webhook" "$payload")
+    local http_code=$(echo "$response" | tail -n1)
+    
+    if [ "$http_code" != "200" ]; then
+        echo "HTTP request failed with code: $http_code" >&2
+        return 1
+    fi
+    
+    sleep 2
+    
+    # Query MongoDB to check the stored document
+    if ! command -v mongosh &> /dev/null; then
+        echo "ERROR: mongosh not installed" >&2
+        return 1
+    fi
+    
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({key: 'TYPE-1'})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Failed to query MongoDB: $result" >&2
+        return 1
+    fi
+    
+    # Check that priority is an object (not string "[object]")
+    if ! echo "$result" | grep -q 'priority:.*{'; then
+        echo "Priority should be an object, got: $(echo "$result" | grep priority)" >&2
+        return 1
+    fi
+    
+    # Check that priority.name exists
+    if ! echo "$result" | grep -q "name:.*'High'"; then
+        echo "Priority.name should be 'High'" >&2
+        return 1
+    fi
+    
+    # Check that labels is an array (not string "[]")
+    if ! echo "$result" | grep -q 'labels:.*\['; then
+        echo "Labels should be an array, got: $(echo "$result" | grep labels)" >&2
+        return 1
+    fi
+    
+    # Check that labels contains "bug"
+    if ! echo "$result" | grep -q "'bug'"; then
+        echo "Labels should contain 'bug'" >&2
+        return 1
+    fi
+    
+    # Check that assignee is an object with nested fields
+    if ! echo "$result" | grep -q 'assignee:.*{'; then
+        echo "Assignee should be an object, got: $(echo "$result" | grep assignee)" >&2
+        return 1
+    fi
+    
+    # Check that assignee.displayName exists
+    if ! echo "$result" | grep -q "displayName:.*'John Doe'"; then
+        echo "Assignee.displayName should be 'John Doe'" >&2
+        return 1
+    fi
+    
+    # Check that customfield is a number type in MongoDB
+    # MongoDB stores it as Long('42') which indicates it's numeric, not a string
+    if ! echo "$result" | grep -q "customfield_12345.*Long"; then
+        echo "customfield_12345 should be stored as a number (Long type), got: $(echo "$result" | grep customfield_12345)" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
+# ================================================
+# Test 14: Upsert behavior (insert then update with same id)
+# ================================================
+test_upsert_behavior() {
+    # First, create an issue with a specific ID
+    local payload_create='{"webhookEvent":"jira:issue_created","timestamp":1234567890,"issue":{"id":"10200","key":"UPSERT-1","fields":{"summary":"Initial Title","priority":"Medium"}}}'
+    local response=$(send_webhook "/jira/webhook" "$payload_create")
+    local http_code=$(echo "$response" | tail -n1)
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Failed to create initial issue: HTTP $http_code" >&2
+        return 1
+    fi
+    
+    sleep 2
+    
+    # Query MongoDB to get the initial document and its _id
+    if ! command -v mongosh &> /dev/null; then
+        echo "ERROR: mongosh not installed" >&2
+        return 1
+    fi
+    
+    local initial_doc=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({id: '10200'})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Failed to query MongoDB for initial document: $initial_doc" >&2
+        return 1
+    fi
+    
+    # Extract the MongoDB _id from the initial document
+    local initial_id=$(echo "$initial_doc" | grep "_id:" | sed "s/.*ObjectId('\([^']*\)').*/\1/")
+    if [ -z "$initial_id" ]; then
+        echo "Failed to extract initial _id from document" >&2
+        return 1
+    fi
+    
+    # Verify initial title
+    if ! echo "$initial_doc" | grep -q "title:.*'Initial Title'"; then
+        echo "Initial document should have title 'Initial Title'" >&2
+        return 1
+    fi
+    
+    # Now send an update with the same id
+    local payload_update='{"webhookEvent":"jira:issue_updated","timestamp":1234567891,"issue":{"id":"10200","key":"UPSERT-1","fields":{"summary":"Updated Title","priority":"High"}}}'
+    response=$(send_webhook "/jira/webhook" "$payload_update")
+    http_code=$(echo "$response" | tail -n1)
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Failed to update issue: HTTP $http_code" >&2
+        return 1
+    fi
+    
+    sleep 2
+    
+    # Query MongoDB again to verify the document was updated
+    local updated_doc=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.findOne({id: '10200'})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Failed to query MongoDB for updated document: $updated_doc" >&2
+        return 1
+    fi
+    
+    # Extract the MongoDB _id from the updated document
+    local updated_id=$(echo "$updated_doc" | grep "_id:" | sed "s/.*ObjectId('\([^']*\)').*/\1/")
+    if [ -z "$updated_id" ]; then
+        echo "Failed to extract updated _id from document" >&2
+        return 1
+    fi
+    
+    # Verify the MongoDB _id is the same (not a new document)
+    if [ "$initial_id" != "$updated_id" ]; then
+        echo "MongoDB _id changed! Expected $initial_id, got $updated_id. Document was not updated in place." >&2
+        return 1
+    fi
+    
+    # Verify the title was updated
+    if ! echo "$updated_doc" | grep -q "title:.*'Updated Title'"; then
+        echo "Document should have updated title 'Updated Title', got: $(echo "$updated_doc" | grep title)" >&2
+        return 1
+    fi
+    
+    # Verify the priority was updated
+    if ! echo "$updated_doc" | grep -q "priority:.*'High'"; then
+        echo "Document should have updated priority 'High'" >&2
+        return 1
+    fi
+    
+    # Verify there's only one document with this id (no duplicates)
+    local count=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.$COLLECTION_NAME.countDocuments({id: '10200'})" 2>&1)
+    if [ "$count" != "1" ]; then
+        echo "Expected exactly 1 document with id '10200', found $count" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
 # Run all tests
 run_test "Health Check" test_health_check
 run_test "Issue Created Webhook" test_issue_created
@@ -368,6 +536,8 @@ run_test "MongoDB Persistence" test_mongo_persistence
 run_test "MongoDB Mapped Data" test_mongo_mapped_data
 run_test "Issue Deleted Webhook" test_issue_deleted
 run_test "Project Created Webhook" test_project_created
+run_test "Type Preservation (Objects, Arrays, Numbers)" test_type_preservation
+run_test "Upsert Behavior (ID-based Updates)" test_upsert_behavior
 
 # Summary
 echo ""

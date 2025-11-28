@@ -15,6 +15,19 @@
             {
               "type": "filter",
               "celExpression": "eventType == 'jira:issue_created' || eventType == 'jira:issue_updated'"
+            },
+            {
+              "type": "mapper",
+              "outputEvent": {
+                "id": "{{ issue.id }}",
+                "key": "{{ issue.key }}",
+                "title": "{{ issue.fields.summary }}",
+                "priority": "{{ issue.fields.priority }}",
+                "labels": "{{ issue.fields.labels }}",
+                "customfield_12345": "{{ issue.fields.customfield_12345 }}",
+                "assignee": "{{ issue.fields.assignee }}",
+                "fixVersions": "{{ issue.fields.fixVersions }}"
+              }
             }
           ],
           "sinks": [
@@ -36,6 +49,7 @@
             {
               "type": "mapper",
               "outputEvent": {
+                "id": "{{ version.id }}",
                 "versionName": "{{ version.name }}",
                 "projectId": "{{ version.projectId }}",
                 "released": "{{ version.released }}"

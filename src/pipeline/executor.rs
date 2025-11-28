@@ -52,11 +52,11 @@ impl PipelineExecutor {
         
         for sink_config in &pipeline_config.sinks {
             match sink_config {
-                crate::pipeline::sinks::SinkConfig::Mongo { url, collection, insert_only: _ } => {
+                crate::pipeline::sinks::SinkConfig::Mongo { url, collection, insert_only } => {
                     let mongo_url = url.resolve()?;
                     
                     let (base_url, database) = Self::parse_mongo_url_for_sink(&mongo_url)?;
-                    let sink = DatabaseSink::with_collection(&base_url, &database, collection).await?;
+                    let sink = DatabaseSink::with_collection(&base_url, &database, collection, *insert_only).await?;
                     
                     sinks.push(Arc::new(sink));
                 }
@@ -65,7 +65,7 @@ impl PipelineExecutor {
                         DatabaseProvider::Mongo => {
                             let mongo_url = crate::config::AppConfig::mongodb_url()?;
                             
-                            let sink = DatabaseSink::new(&mongo_url).await?;
+                            let sink = DatabaseSink::new(&mongo_url, false).await?;
                             
                             sinks.push(Arc::new(sink));
                         }

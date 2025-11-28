@@ -9,10 +9,11 @@ pub struct DatabaseSink {
     client: Client,
     database: String,
     collection: String,
+    insert_only: bool,
 }
 
 impl DatabaseSink {
-    pub async fn new(mongo_url: &str) -> Result<Self> {
+    pub async fn new(mongo_url: &str, insert_only: bool) -> Result<Self> {
         let client = Client::with_uri_str(mongo_url)
             .await
             .map_err(|e| AppError::Database(format!("Failed to connect to MongoDB: {}", e)))?;
@@ -23,10 +24,11 @@ impl DatabaseSink {
             client,
             database,
             collection,
+            insert_only,
         })
     }
     
-    pub async fn with_collection(mongo_url: &str, database: &str, collection: &str) -> Result<Self> {
+    pub async fn with_collection(mongo_url: &str, database: &str, collection: &str, insert_only: bool) -> Result<Self> {
         let client = Client::with_uri_str(mongo_url)
             .await
             .map_err(|e| AppError::Database(format!("Failed to connect to MongoDB: {}", e)))?;
@@ -35,6 +37,7 @@ impl DatabaseSink {
             client,
             database: database.to_string(),
             collection: collection.to_string(),
+            insert_only,
         })
     }
     
@@ -98,23 +101,56 @@ impl Sink for DatabaseSink {
         match event.operation {
             Operation::Write => {
                 // Convert the event body to BSON
-                let mut document = self.json_to_bson(&event.body)?;
+                let document = self.json_to_bson(&event.body)?;
                 
-                // Add the event ID and type to the document
-                document.insert("_id", &event.id);
-                document.insert("_eventType", &event.event_type);
+                // Extract the 'id' field from the mapped output to use as primary key
+                let id_value = document.get("id")
+                    .ok_or_else(|| AppError::Processing(
+                        "Mapped output event must contain an 'id' field for database sink".to_string()
+                    ))?;
                 
-                // Upsert the document
-                collection
-                    .replace_one(doc! { "_id": &event.id }, document)
-                    .upsert(true)
-                    .await
-                    .map_err(|e| AppError::Database(format!("Failed to write to MongoDB: {}", e)))?;
+                if self.insert_only {
+                    // Insert-only mode: always insert, never update
+                    collection
+                        .insert_one(document)
+                        .await
+                        .map_err(|e| AppError::Database(format!("Failed to insert to MongoDB: {}", e)))?;
+                } else {
+                    // Upsert mode: check if document exists by 'id' field
+                    let filter = doc! { "id": id_value.clone() };
+                    let existing = collection.find_one(filter.clone()).await
+                        .map_err(|e| AppError::Database(format!("Failed to query MongoDB: {}", e)))?;
+                    
+                    if let Some(existing_doc) = existing {
+                        // Document exists: update it (preserve MongoDB _id)
+                        let mut update_doc = document;
+                        if let Some(mongo_id) = existing_doc.get("_id") {
+                            update_doc.insert("_id", mongo_id.clone());
+                        }
+                        collection
+                            .replace_one(filter, update_doc)
+                            .await
+                            .map_err(|e| AppError::Database(format!("Failed to update MongoDB: {}", e)))?;
+                    } else {
+                        // Document doesn't exist: insert it
+                        collection
+                            .insert_one(document)
+                            .await
+                            .map_err(|e| AppError::Database(format!("Failed to insert to MongoDB: {}", e)))?;
+                    }
+                }
             }
             Operation::Delete => {
-                // Delete the document by ID
+                // Extract the 'id' field to identify document to delete
+                let document = self.json_to_bson(&event.body)?;
+                let id_value = document.get("id")
+                    .ok_or_else(|| AppError::Processing(
+                        "Mapped output event must contain an 'id' field for database sink".to_string()
+                    ))?;
+                
+                // Delete the document by 'id' field
                 collection
-                    .delete_one(doc! { "_id": &event.id })
+                    .delete_one(doc! { "id": id_value.clone() })
                     .await
                     .map_err(|e| AppError::Database(format!("Failed to delete from MongoDB: {}", e)))?;
             }
