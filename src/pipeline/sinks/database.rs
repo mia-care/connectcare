@@ -4,7 +4,6 @@ use super::Sink;
 use mongodb::{Client, Collection, bson::{self, doc}};
 use serde_json::Value;
 
-/// MongoDB database sink
 pub struct DatabaseSink {
     client: Client,
     database: String,
@@ -100,55 +99,57 @@ impl Sink for DatabaseSink {
         
         match event.operation {
             Operation::Write => {
-                // Convert the event body to BSON
                 let document = self.json_to_bson(&event.body)?;
                 
-                // Extract the 'id' field from the mapped output to use as primary key
-                let id_value = document.get("id")
-                    .ok_or_else(|| AppError::Processing(
-                        "Mapped output event must contain an 'id' field for database sink".to_string()
-                    ))?;
-                
                 if self.insert_only {
-                    // Insert-only mode: always insert, never update
                     collection
                         .insert_one(document)
                         .await
                         .map_err(|e| AppError::Database(format!("Failed to insert to MongoDB: {}", e)))?;
                 } else {
-                    // Upsert mode: check if document exists by 'id' field
+                    let id_value = document.get("id")
+                        .cloned()
+                        .unwrap_or_else(|| bson::Bson::String(event.id.clone()));
+                    
                     let filter = doc! { "id": id_value.clone() };
                     let existing = collection.find_one(filter.clone()).await
                         .map_err(|e| AppError::Database(format!("Failed to query MongoDB: {}", e)))?;
                     
                     if let Some(existing_doc) = existing {
-                        // Document exists: update it (preserve MongoDB _id)
+
                         let mut update_doc = document;
                         if let Some(mongo_id) = existing_doc.get("_id") {
                             update_doc.insert("_id", mongo_id.clone());
                         }
+
+                        if !update_doc.contains_key("id") {
+                            update_doc.insert("id", id_value.clone());
+                        }
+
                         collection
                             .replace_one(filter, update_doc)
                             .await
                             .map_err(|e| AppError::Database(format!("Failed to update MongoDB: {}", e)))?;
                     } else {
-                        // Document doesn't exist: insert it
+                        let mut insert_doc = document;
+
+                        if !insert_doc.contains_key("id") {
+                            insert_doc.insert("id", id_value.clone());
+                        }
+
                         collection
-                            .insert_one(document)
+                            .insert_one(insert_doc)
                             .await
                             .map_err(|e| AppError::Database(format!("Failed to insert to MongoDB: {}", e)))?;
                     }
                 }
             }
             Operation::Delete => {
-                // Extract the 'id' field to identify document to delete
                 let document = self.json_to_bson(&event.body)?;
                 let id_value = document.get("id")
-                    .ok_or_else(|| AppError::Processing(
-                        "Mapped output event must contain an 'id' field for database sink".to_string()
-                    ))?;
+                    .cloned()
+                    .unwrap_or_else(|| bson::Bson::String(event.id.clone()));
                 
-                // Delete the document by 'id' field
                 collection
                     .delete_one(doc! { "id": id_value.clone() })
                     .await

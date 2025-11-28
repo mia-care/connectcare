@@ -523,6 +523,68 @@ test_upsert_behavior() {
     return 0
 }
 
+# ================================================
+# Test 15: Insert-only with pass-through mapping (@this)
+# ================================================
+test_insert_only_passthrough() {
+    # Send a webhook that will be stored in raw_events collection with insertOnly=true
+    local payload='{"webhookEvent":"jira:issue_created","timestamp":1234567890,"issue":{"id":"77777","key":"RAW-1","fields":{"summary":"Pass-through Test"}}}'
+    local response=$(send_webhook "/jira/webhook" "$payload")
+    local http_code=$(echo "$response" | tail -n1)
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Failed to create issue: HTTP $http_code" >&2
+        return 1
+    fi
+    
+    sleep 2
+    
+    # Query MongoDB to verify the document was stored in raw_events
+    # Since insertOnly doesn't require 'id' field, we search for the full structure
+    if ! command -v mongosh &> /dev/null; then
+        echo "ERROR: mongosh not installed" >&2
+        return 1
+    fi
+    
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.raw_events.findOne({'event.issue.key': 'RAW-1'})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Failed to query MongoDB: $result" >&2
+        return 1
+    fi
+    
+    # Verify the document exists and contains the full event structure
+    if ! echo "$result" | grep -q "event:.*{"; then
+        echo "Expected to find 'event' object field in raw_events collection, got: $result" >&2
+        return 1
+    fi
+    
+    # Verify the nested structure is preserved (issue.id should be in the event field)
+    # Check that the full event structure is present including issue object
+    if ! echo "$result" | grep -q "issue:"; then
+        echo "Expected to find 'issue' field nested in event object" >&2
+        return 1
+    fi
+    
+    if ! echo "$result" | grep -q "'77777'"; then
+        echo "Expected to find issue id '77777' somewhere in the document" >&2
+        return 1
+    fi
+    
+    # Verify MongoDB assigned an _id (should have auto-generated ObjectId)
+    if ! echo "$result" | grep -q "_id:.*ObjectId"; then
+        echo "Expected MongoDB to auto-generate _id" >&2
+        return 1
+    fi
+    
+    # Verify 'id' field was added automatically (fallback to event.id hash)
+    if ! echo "$result" | grep -q "id:"; then
+        echo "Expected 'id' field to be added automatically for upsert tracking" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
 # Run all tests
 run_test "Health Check" test_health_check
 run_test "Issue Created Webhook" test_issue_created
@@ -538,6 +600,7 @@ run_test "Issue Deleted Webhook" test_issue_deleted
 run_test "Project Created Webhook" test_project_created
 run_test "Type Preservation (Objects, Arrays, Numbers)" test_type_preservation
 run_test "Upsert Behavior (ID-based Updates)" test_upsert_behavior
+run_test "Insert-Only with Pass-Through (@this)" test_insert_only_passthrough
 
 # Summary
 echo ""

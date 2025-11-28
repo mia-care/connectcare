@@ -13,6 +13,26 @@
         {
           "processors": [
             {
+              "type": "mapper",
+              "outputEvent": {
+                "event": "{{ @this }}"
+              }
+            }
+          ],
+          "sinks": [
+            {
+              "type": "mongo",
+              "url": {
+                "fromEnv": "MONGO_URL"
+              },
+              "collection": "raw_events",
+              "insertOnly": true
+            }
+          ]
+        },
+        {
+          "processors": [
+            {
               "type": "filter",
               "celExpression": "eventType == 'jira:issue_created' || eventType == 'jira:issue_updated'"
             },

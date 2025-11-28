@@ -25,6 +25,11 @@ impl MapperProcessor {
                 if trimmed.starts_with("{{") && trimmed.ends_with("}}") {
                     let inner = trimmed[2..trimmed.len()-2].trim();
                     
+                    // Special case: @this returns the entire context
+                    if inner == "@this" {
+                        return Ok(context.clone());
+                    }
+                    
                     // Check if it's a pure variable reference (no filters, no string concatenation)
                     if !inner.contains('|') && !trimmed.contains("{{") || trimmed.matches("{{").count() == 1 {
                         // Try to extract the raw value from context
