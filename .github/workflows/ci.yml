@@ -22,7 +22,6 @@ permissions:
   id-token: write
 
 jobs:
-  # Step 1: Build and test Rust code
   build:
     name: Build and Test
     runs-on: ubuntu-latest
@@ -56,9 +55,8 @@ jobs:
         path: target/release/connectcare
         retention-days: 1
 
-  # Step 2: End-to-End tests
-  e2e:
-    name: E2E Tests
+  docker-build:
+    name: Build Docker Image
     runs-on: ubuntu-latest
     needs: build
 
@@ -74,29 +72,59 @@ jobs:
     - name: Make binary executable
       run: chmod +x target/release/connectcare
     
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        load: true
+        tags: |
+          connectcare:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Export Docker image
+      run: |
+        docker save connectcare:latest | gzip > /tmp/connectcare-image.tar.gz
+    
+    - name: Upload Docker image artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: connectcare-docker-image
+        path: /tmp/connectcare-image.tar.gz
+        retention-days: 1
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: docker-build
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download Docker image artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: connectcare-docker-image
+        path: /tmp/
+    
+    - name: Load Docker image
+      run: |
+        docker load < /tmp/connectcare-image.tar.gz
+        docker images
+    
     - name: Install Docker Compose
       run: |
         sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         sudo chmod +x /usr/local/bin/docker-compose
         docker-compose --version
     
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Build Docker image (with cache)
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: false
-        load: true
-        tags: connectcare:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    
     - name: Start services
       run: |
-        # Use the cached image we just built
-        docker tag connectcare:test connectcare:latest
         docker-compose -f docker-compose.test.yml up -d
         echo "Waiting for services to be ready..."
         sleep 15
@@ -121,37 +149,26 @@ jobs:
       if: always()
       run: docker-compose -f docker-compose.test.yml down -v
 
-  # Step 3: Security scan with Trivy
   trivy:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: build
+    needs: docker-build
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download build artifacts
+    - name: Download Docker image artifact
       uses: actions/download-artifact@v4
       with:
-        name: connectcare-binary
-        path: target/release/
+        name: connectcare-docker-image
+        path: /tmp/
     
-    - name: Make binary executable
-      run: chmod +x target/release/connectcare
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build Docker image for scanning (with cache)
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: false
-        load: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+    - name: Load Docker image
+      run: |
+        docker load < /tmp/connectcare-image.tar.gz
+        docker tag connectcare:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        docker images
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
@@ -167,12 +184,10 @@ jobs:
       with:
         sarif_file: 'trivy-results.sarif'
 
-  # Step 4: Build and publish Docker image
   docker-publish:
     name: Build and Publish Docker Image
     runs-on: ubuntu-latest
-    needs: [build, e2e, trivy]
-    # Only run on push to main or tags, not on PRs or scheduled runs
+    needs: [docker-build, e2e, trivy]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
 
     steps:
