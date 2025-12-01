@@ -444,7 +444,6 @@ mod tests {
         
         let result_event = result.unwrap();
         
-        // Verify plain values are preserved
         assert_eq!(result_event.body["staticText"], "My var text");
         assert_eq!(result_event.body["staticNumber"], 42);
         assert_eq!(result_event.body["staticBool"], true);
@@ -453,8 +452,6 @@ mod tests {
         assert_eq!(result_event.body["staticArray"], json!([1, 2, 3]));
         assert!(result_event.body["staticObject"].is_object());
         assert_eq!(result_event.body["staticObject"]["nested"], "value");
-        
-        // Verify dynamic value still works
         assert_eq!(result_event.body["dynamicValue"], "12345");
     }
 }
