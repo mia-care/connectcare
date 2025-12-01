@@ -32,9 +32,7 @@ impl MapperProcessor {
                     
                     // Check if it's a pure variable reference (no filters, no string concatenation)
                     if !inner.contains('|') && !trimmed.contains("{{") || trimmed.matches("{{").count() == 1 {
-                        // Try to extract the raw value from context
                         if let Some(raw_value) = self.extract_value_from_path(inner, context) {
-                            // Return the raw value preserving its type
                             return Ok(raw_value.clone());
                         }
                     }
@@ -55,7 +53,20 @@ impl MapperProcessor {
                 Ok(Value::String(rendered))
             }
             Value::Object(map) => {
-                // Recursively render all values in the object
+                // Check if this is a casting object with "value" and "castTo" fields
+                if map.contains_key("value") && map.contains_key("castTo") {
+                    let value_template = &map["value"];
+                    let cast_to = map["castTo"].as_str()
+                        .ok_or_else(|| AppError::Processing(
+                            "castTo must be a string".to_string()
+                        ))?;
+                    
+                    let rendered_value = self.render_value(value_template, context)?;
+                    
+                    return self.cast_value(&rendered_value, cast_to);
+                }
+                
+                // Otherwise, recursively render all values in the object
                 let mut result = serde_json::Map::new();
                 for (key, val) in map {
                     result.insert(key.clone(), self.render_value(val, context)?);
@@ -63,7 +74,6 @@ impl MapperProcessor {
                 Ok(Value::Object(result))
             }
             Value::Array(arr) => {
-                // Recursively render all values in the array
                 let mut result = Vec::new();
                 for val in arr {
                     result.push(self.render_value(val, context)?);
@@ -94,6 +104,46 @@ impl MapperProcessor {
         }
         
         Some(current)
+    }
+    
+    fn cast_value(&self, value: &Value, cast_to: &str) -> Result<Value> {
+        match cast_to.to_lowercase().as_str() {
+            "string" => {
+                match value {
+                    Value::String(s) => Ok(Value::String(s.clone())),
+                    Value::Number(n) => Ok(Value::String(n.to_string())),
+                    Value::Bool(b) => Ok(Value::String(b.to_string())),
+                    Value::Null => Ok(Value::String(String::new())),
+                    _ => Err(AppError::Processing(
+                        format!("Cannot cast complex type to string: {:?}", value)
+                    )),
+                }
+            }
+            "number" => {
+                match value {
+                    Value::Number(n) => Ok(Value::Number(n.clone())),
+                    Value::String(s) => {
+                        // Try to parse as integer first, then as float
+                        if let Ok(i) = s.parse::<i64>() {
+                            Ok(serde_json::json!(i))
+                        } else if let Ok(f) = s.parse::<f64>() {
+                            Ok(serde_json::json!(f))
+                        } else {
+                            Err(AppError::Processing(
+                                format!("Cannot parse '{}' as number", s)
+                            ))
+                        }
+                    }
+                    Value::Bool(b) => Ok(serde_json::json!(if *b { 1 } else { 0 })),
+                    _ => Err(AppError::Processing(
+                        format!("Cannot cast type to number: {:?}", value)
+                    )),
+                }
+            }
+            _ => Err(AppError::Processing(
+                format!("Unsupported cast type: '{}'. Supported types are: string, number", cast_to)
+            )),
+        }
     }
 }
 
@@ -250,5 +300,115 @@ mod tests {
         let result_event = result.unwrap();
         assert_eq!(result_event.body["versionId"], "12345");
         assert_eq!(result_event.body["versionName"], "v1.0.0");
+    }
+    
+    #[tokio::test]
+    async fn test_cast_string_to_number() {
+        let template = json!({
+            "issueId": {
+                "value": "{{ issue.id }}",
+                "castTo": "number"
+            },
+            "count": {
+                "value": "{{ issue.count }}",
+                "castTo": "number"
+            }
+        });
+        
+        let mapper = MapperProcessor::new(template).unwrap();
+        
+        let event = PipelineEvent::new(
+            json!({
+                "issue": {
+                    "id": "12345",
+                    "count": "42"
+                }
+            }),
+            "test_event".to_string(),
+            vec![],
+            Operation::Write,
+        );
+        
+        let result = mapper.process(event).await.unwrap();
+        assert!(result.is_some());
+        
+        let result_event = result.unwrap();
+        assert!(result_event.body["issueId"].is_number());
+        assert_eq!(result_event.body["issueId"], 12345);
+        assert!(result_event.body["count"].is_number());
+        assert_eq!(result_event.body["count"], 42);
+    }
+    
+    #[tokio::test]
+    async fn test_cast_number_to_string() {
+        let template = json!({
+            "priorityLabel": {
+                "value": "{{ issue.priority }}",
+                "castTo": "string"
+            },
+            "statusCode": {
+                "value": "{{ issue.status }}",
+                "castTo": "string"
+            }
+        });
+        
+        let mapper = MapperProcessor::new(template).unwrap();
+        
+        let event = PipelineEvent::new(
+            json!({
+                "issue": {
+                    "priority": 3,
+                    "status": 200
+                }
+            }),
+            "test_event".to_string(),
+            vec![],
+            Operation::Write,
+        );
+        
+        let result = mapper.process(event).await.unwrap();
+        assert!(result.is_some());
+        
+        let result_event = result.unwrap();
+        assert!(result_event.body["priorityLabel"].is_string());
+        assert_eq!(result_event.body["priorityLabel"], "3");
+        assert!(result_event.body["statusCode"].is_string());
+        assert_eq!(result_event.body["statusCode"], "200");
+    }
+    
+    #[tokio::test]
+    async fn test_mixed_casting_and_normal_fields() {
+        let template = json!({
+            "key": "{{ issue.key }}",
+            "issueId": {
+                "value": "{{ issue.id }}",
+                "castTo": "number"
+            },
+            "summary": "{{ issue.summary }}"
+        });
+        
+        let mapper = MapperProcessor::new(template).unwrap();
+        
+        let event = PipelineEvent::new(
+            json!({
+                "issue": {
+                    "key": "TEST-123",
+                    "id": "9999",
+                    "summary": "Test issue"
+                }
+            }),
+            "test_event".to_string(),
+            vec![],
+            Operation::Write,
+        );
+        
+        let result = mapper.process(event).await.unwrap();
+        assert!(result.is_some());
+        
+        let result_event = result.unwrap();
+        assert_eq!(result_event.body["key"], "TEST-123");
+        assert!(result_event.body["issueId"].is_number());
+        assert_eq!(result_event.body["issueId"], 9999);
+        assert_eq!(result_event.body["summary"], "Test issue");
     }
 }

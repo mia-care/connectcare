@@ -585,6 +585,61 @@ test_insert_only_passthrough() {
     return 0
 }
 
+# ================================================
+# Test 16: Type casting (string to number and number to string)
+# ================================================
+test_type_casting() {
+    # Send a webhook with fields that will be cast
+    local payload='{"webhookEvent":"jira:issue_created","timestamp":1234567890,"issue":{"id":"55555","key":"CAST-1","fields":{"summary":"Casting Test","priority":3,"customfield_count":"999"}}}'
+    local response=$(send_webhook "/jira/webhook" "$payload")
+    local http_code=$(echo "$response" | tail -n1)
+    
+    if [ "$http_code" != "200" ]; then
+        echo "Failed to create issue: HTTP $http_code" >&2
+        return 1
+    fi
+    
+    sleep 2
+    
+    # Query MongoDB to verify the document was stored with correct types
+    if ! command -v mongosh &> /dev/null; then
+        echo "ERROR: mongosh not installed" >&2
+        return 1
+    fi
+    
+    local result=$(mongosh "$MONGO_URI/$DB_NAME" --quiet --eval "db.casting_test.findOne({key: 'CAST-1'})" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Failed to query MongoDB: $result" >&2
+        return 1
+    fi
+    
+    # Verify issueIdAsNumber is a number (cast from string "55555")
+    if ! echo "$result" | grep -q "issueIdAsNumber.*Long\|issueIdAsNumber.*55555"; then
+        echo "Expected issueIdAsNumber to be a number type, got: $(echo "$result" | grep issueIdAsNumber)" >&2
+        return 1
+    fi
+    
+    # Verify priorityAsString is a string (cast from number 3)
+    if ! echo "$result" | grep -q "priorityAsString:.*'3'"; then
+        echo "Expected priorityAsString to be string '3', got: $(echo "$result" | grep priorityAsString)" >&2
+        return 1
+    fi
+    
+    # Verify countAsNumber is a number (cast from string "999")
+    if ! echo "$result" | grep -q "countAsNumber.*Long\|countAsNumber.*999"; then
+        echo "Expected countAsNumber to be a number type, got: $(echo "$result" | grep countAsNumber)" >&2
+        return 1
+    fi
+    
+    # Verify title remained as string (no casting)
+    if ! echo "$result" | grep -q "title:.*'Casting Test'"; then
+        echo "Expected title to be 'Casting Test'" >&2
+        return 1
+    fi
+    
+    return 0
+}
+
 # Run all tests
 run_test "Health Check" test_health_check
 run_test "Issue Created Webhook" test_issue_created
@@ -601,6 +656,7 @@ run_test "Project Created Webhook" test_project_created
 run_test "Type Preservation (Objects, Arrays, Numbers)" test_type_preservation
 run_test "Upsert Behavior (ID-based Updates)" test_upsert_behavior
 run_test "Insert-Only with Pass-Through (@this)" test_insert_only_passthrough
+run_test "Type Casting (String/Number Conversion)" test_type_casting
 
 # Summary
 echo ""

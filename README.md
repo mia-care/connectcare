@@ -264,7 +264,7 @@ Uses CEL (Common Expression Language) to filter events. Only events matching the
 
 Uses Handlebars templates to transform event data into a new structure.
 
-**Example:**
+**Basic Example:**
 ```json
 {
   "type": "mapper",
@@ -280,6 +280,65 @@ Uses Handlebars templates to transform event data into a new structure.
   }
 }
 ```
+
+**Type Preservation:**
+
+The mapper automatically preserves JSON types (objects, arrays, numbers, booleans) when using simple variable references:
+
+```json
+{
+  "type": "mapper",
+  "outputEvent": {
+    "priority": "{{ issue.fields.priority }}",
+    "labels": "{{ issue.fields.labels }}",
+    "assignee": "{{ issue.fields.assignee }}"
+  }
+}
+```
+
+If `priority` is an object in the source, it will remain an object. If `labels` is an array, it stays an array.
+
+**Pass-Through Mapping:**
+
+Use `{{ @this }}` to pass the entire event unchanged:
+
+```json
+{
+  "type": "mapper",
+  "outputEvent": {
+    "event": "{{ @this }}"
+  }
+}
+```
+
+**Type Casting:**
+
+You can explicitly cast values between `string` and `number` types using the `castTo` property:
+
+```json
+{
+  "type": "mapper",
+  "outputEvent": {
+    "key": "{{ issue.key }}",
+    "issueId": {
+      "value": "{{ issue.id }}",
+      "castTo": "number"
+    },
+    "priorityLabel": {
+      "value": "{{ issue.fields.priority }}",
+      "castTo": "string"
+    }
+  }
+}
+```
+
+Supported cast types:
+- `string` - Converts numbers, booleans to string
+- `number` - Parses strings as integers or floats (e.g., "123" → 123, "45.67" → 45.67)
+
+This is useful when:
+- Jira sends numeric IDs as strings but you want them as numbers in the database
+- You need to convert numeric values to strings for specific processing requirements
 
 ### Sinks
 

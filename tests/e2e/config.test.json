@@ -85,6 +85,43 @@
               "collection": "events"
             }
           ]
+        },
+        {
+          "processors": [
+            {
+              "type": "filter",
+              "celExpression": "eventType == 'jira:issue_created' && issue.key == 'CAST-1'"
+            },
+            {
+              "type": "mapper",
+              "outputEvent": {
+                "id": "{{ issue.id }}",
+                "key": "{{ issue.key }}",
+                "issueIdAsNumber": {
+                  "value": "{{ issue.id }}",
+                  "castTo": "number"
+                },
+                "priorityAsString": {
+                  "value": "{{ issue.fields.priority }}",
+                  "castTo": "string"
+                },
+                "countAsNumber": {
+                  "value": "{{ issue.fields.customfield_count }}",
+                  "castTo": "number"
+                },
+                "title": "{{ issue.fields.summary }}"
+              }
+            }
+          ],
+          "sinks": [
+            {
+              "type": "mongo",
+              "url": {
+                "fromEnv": "MONGO_URL"
+              },
+              "collection": "casting_test"
+            }
+          ]
         }
       ]
     }
