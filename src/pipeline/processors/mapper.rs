@@ -411,4 +411,50 @@ mod tests {
         assert_eq!(result_event.body["issueId"], 9999);
         assert_eq!(result_event.body["summary"], "Test issue");
     }
+    
+    #[tokio::test]
+    async fn test_plain_value_mappings() {
+        let template = json!({
+            "staticText": "My var text",
+            "staticNumber": 42,
+            "staticBool": true,
+            "staticNull": null,
+            "staticArray": [1, 2, 3],
+            "staticObject": {
+                "nested": "value"
+            },
+            "dynamicValue": "{{ issue.id }}"
+        });
+        
+        let mapper = MapperProcessor::new(template).unwrap();
+        
+        let event = PipelineEvent::new(
+            json!({
+                "issue": {
+                    "id": "12345"
+                }
+            }),
+            "test_event".to_string(),
+            vec![],
+            Operation::Write,
+        );
+        
+        let result = mapper.process(event).await.unwrap();
+        assert!(result.is_some());
+        
+        let result_event = result.unwrap();
+        
+        // Verify plain values are preserved
+        assert_eq!(result_event.body["staticText"], "My var text");
+        assert_eq!(result_event.body["staticNumber"], 42);
+        assert_eq!(result_event.body["staticBool"], true);
+        assert!(result_event.body["staticNull"].is_null());
+        assert!(result_event.body["staticArray"].is_array());
+        assert_eq!(result_event.body["staticArray"], json!([1, 2, 3]));
+        assert!(result_event.body["staticObject"].is_object());
+        assert_eq!(result_event.body["staticObject"]["nested"], "value");
+        
+        // Verify dynamic value still works
+        assert_eq!(result_event.body["dynamicValue"], "12345");
+    }
 }

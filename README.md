@@ -298,6 +298,42 @@ The mapper automatically preserves JSON types (objects, arrays, numbers, boolean
 
 If `priority` is an object in the source, it will remain an object. If `labels` is an array, it stays an array.
 
+**Static/Plain Values:**
+
+You can assign static values directly without any template interpolation:
+
+```json
+{
+  "type": "mapper",
+  "outputEvent": {
+    "source": "jira",
+    "version": "1.0",
+    "priority": 1,
+    "enabled": true,
+    "metadata": null,
+    "tags": ["production", "automated"],
+    "config": {
+      "timeout": 30,
+      "retry": true
+    },
+    "issueKey": "{{ issue.key }}"
+  }
+}
+```
+
+Static values are passed through as-is with their original types:
+- Strings: `"source": "jira"` → `"jira"`
+- Numbers: `"priority": 1` → `1`
+- Booleans: `"enabled": true` → `true`
+- Null: `"metadata": null` → `null`
+- Arrays: `"tags": [1, 2]` → `[1, 2]`
+- Objects: `"config": {...}` → `{...}`
+
+This is useful for:
+- Adding metadata or configuration to events
+- Setting default values
+- Mixing static and dynamic fields in the same mapping
+
 **Pass-Through Mapping:**
 
 Use `{{ @this }}` to pass the entire event unchanged:
