@@ -34,7 +34,9 @@ impl MapperProcessor {
                     if !inner.contains('|') && !trimmed.contains("{{") || trimmed.matches("{{").count() == 1 {
                         if let Some(raw_value) = self.extract_value_from_path(inner, context) {
                             return Ok(raw_value.clone());
-                        }
+                        } 
+                        
+                        return Ok(Value::Null);
                     }
                 }
                 
@@ -453,5 +455,39 @@ mod tests {
         assert!(result_event.body["staticObject"].is_object());
         assert_eq!(result_event.body["staticObject"]["nested"], "value");
         assert_eq!(result_event.body["dynamicValue"], "12345");
+    }
+    
+    #[tokio::test]
+    async fn test_missing_field_returns_null() {
+        let template = json!({
+            "existingField": "{{ issue.id }}",
+            "missingField": "{{ issue.nonexistent }}",
+            "nestedMissing": "{{ issue.fields.missing }}"
+        });
+        
+        let mapper = MapperProcessor::new(template).unwrap();
+        
+        let event = PipelineEvent::new(
+            json!({
+                "issue": {
+                    "id": "12345"
+                }
+            }),
+            "test_event".to_string(),
+            vec![],
+            Operation::Write,
+        );
+        
+        let result = mapper.process(event).await.unwrap();
+        assert!(result.is_some());
+        
+        let result_event = result.unwrap();
+        
+        // Existing field should work normally
+        assert_eq!(result_event.body["existingField"], "12345");
+        
+        // Missing fields should be null, not empty strings
+        assert!(result_event.body["missingField"].is_null());
+        assert!(result_event.body["nestedMissing"].is_null());
     }
 }
